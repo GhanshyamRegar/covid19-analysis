@@ -1,0 +1,89 @@
+# 🧪 COVID-19 Data Analysis Project
+
+# Step 1: Import required libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set(style="whitegrid")
+plt.rcParams["figure.figsize"] = (12, 6)
+
+#  Load datasets
+confirmed = pd.read_csv("data/covid19_Confirmed_dataset.csv")
+deaths = pd.read_csv("data/covid19_deaths_dataset.csv")
+happiness = pd.read_csv("data/worldwide_happiness_report.csv")
+
+#  Preview data
+print("Confirmed Cases Dataset")
+print(confirmed.head())
+
+print("\nDeaths Dataset")
+print(deaths.head())
+
+print("\nHappiness Dataset")
+print(happiness.head())
+
+#  Data Cleaning
+
+# Drop columns not needed
+confirmed.drop(columns=["Province/State", "Lat", "Long"], inplace=True)
+deaths.drop(columns=["Province/State", "Lat", "Long"], inplace=True)
+
+# Aggregate by country
+confirmed_total = confirmed.groupby("Country/Region").sum().reset_index()
+deaths_total = deaths.groupby("Country/Region").sum().reset_index()
+
+# Calculate totals
+confirmed_total["Total Confirmed"] = confirmed_total.iloc[:, 1:].sum(axis=1)
+deaths_total["Total Deaths"] = deaths_total.iloc[:, 1:].sum(axis=1)
+
+# Merge confirmed and deaths
+covid_summary = pd.merge(
+    confirmed_total[["Country/Region", "Total Confirmed"]],
+    deaths_total[["Country/Region", "Total Deaths"]],
+    on="Country/Region"
+)
+
+covid_summary["Death Rate (%)"] = (covid_summary["Total Deaths"] / covid_summary["Total Confirmed"]) * 100
+
+# Rename columns for consistency
+covid_summary.rename(columns={"Country/Region": "Country"}, inplace=True)
+happiness.rename(columns={"Country or region": "Country"}, inplace=True)
+
+
+#  Merge with happiness data
+merged = pd.merge(covid_summary, happiness, on="Country", how="inner")
+
+# Correlation heatmap
+corr = merged.corr(numeric_only=True)
+sns.heatmap(corr, annot=True, cmap="coolwarm")
+plt.title("Correlation Between COVID Impact & Happiness Factors")
+plt.show()
+
+# Visualizations
+
+# Top 10 countries by confirmed cases
+top10_confirmed = covid_summary.sort_values(by="Total Confirmed", ascending=False).head(10)
+sns.barplot(data=top10_confirmed, x="Total Confirmed", y="Country", palette="Reds_r")
+plt.title("Top 10 Countries by Confirmed COVID-19 Cases")
+plt.show()
+
+# Top 10 by death rate (min 10000 cases to avoid small samples)
+top_death_rate = covid_summary[covid_summary["Total Confirmed"] > 10000]
+top_death_rate = top_death_rate.sort_values(by="Death Rate (%)", ascending=False).head(10)
+sns.barplot(data=top_death_rate, x="Death Rate (%)", y="Country", palette="Purples_r")
+plt.title("Top 10 Countries by Death Rate (%)")
+plt.show()
+
+# Happiness Score vs Death Rate
+sns.scatterplot(data=merged, x="Ladder score", y="Death Rate (%)", hue="Logged GDP per capita", size="Healthy life expectancy")
+plt.title("Happiness Score vs COVID-19 Death Rate")
+plt.xlabel("Happiness Score (Ladder Score)")
+plt.ylabel("Death Rate (%)")
+plt.show()
+
+# Save merged data
+merged.to_csv("data/merged_covid_happiness.csv", index=False)
+
+
